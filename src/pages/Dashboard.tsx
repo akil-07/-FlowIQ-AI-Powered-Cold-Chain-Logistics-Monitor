@@ -101,7 +101,7 @@ export default function Dashboard() {
   return (
     <div className="flex h-[calc(100vh-8rem)] gap-6 relative w-full overflow-hidden">
       {/* Toast Notification */}
-      <div className={`fixed bottom-6 w-[400px] left-1/2 -translate-x-1/2 z-[200] bg-green-900/90 border border-green-500/50 text-green-400 px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 transition-transform duration-500 ease-in-out ${showToast ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'}`}>
+      <div className={`fixed bottom-6 w-[400px] left-1/2 -translate-x-1/2 z-[2000] bg-green-900/90 border border-green-500/50 text-green-400 px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 transition-transform duration-500 ease-in-out ${showToast ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'}`}>
         <CheckCircle size={28} className="flex-shrink-0 text-green-400" />
         <div>
           <p className="font-bold text-white mb-1 leading-tight">Truck 3 rerouted to Apollo Cold Storage.</p>
@@ -110,7 +110,7 @@ export default function Dashboard() {
       </div>
 
       {/* AI Recommendation Popup */}
-      <div className={`fixed top-24 right-6 z-[100] w-[400px] bg-gray-900 border-l-[6px] border-l-red-500 rounded-xl p-5 shadow-2xl transition-transform duration-500 ease-in-out ${showPopup ? 'translate-x-0' : 'translate-x-[150%]'}`}>
+      <div className={`fixed top-24 right-6 z-[1900] w-[400px] bg-gray-900 border-l-[6px] border-l-red-500 rounded-xl p-5 shadow-2xl transition-transform duration-500 ease-in-out ${showPopup ? 'translate-x-0' : 'translate-x-[150%]'}`}>
         <div className="flex items-start gap-4 mb-4">
           <div className="bg-red-500/20 p-2 rounded-lg mt-1">
             <AlertTriangle className="text-red-500" size={24} />
