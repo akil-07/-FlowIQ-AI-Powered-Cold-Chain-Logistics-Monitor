@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import { CheckCircle, Clock, MapPin, Package, Navigation, ChevronLeft, ChevronRight, Truck as TruckIcon } from 'lucide-react';
+import { CheckCircle, Clock, MapPin, Package, Navigation, ChevronLeft, ChevronRight, Truck as TruckIcon, AlertTriangle } from 'lucide-react';
 
 const createIcon = (colorClass: string) => L.divIcon({
   className: 'custom-icon',
@@ -41,6 +41,7 @@ type Shipment = {
   startCoords: [number, number];
   baseTemp: number;
   etaBase: number;
+  status: 'SAFE' | 'WARNING' | 'BREACH' | 'REROUTING';
 };
 
 const shipments: Shipment[] = [
@@ -51,8 +52,9 @@ const shipments: Shipment[] = [
     destination: 'Apollo Hospital, Greams Road', 
     destCoords: [13.0645, 80.2520], 
     startCoords: [13.0827, 80.2000], 
-    baseTemp: 3.8, 
-    etaBase: 18 
+    baseTemp: 6.8, 
+    etaBase: 18,
+    status: 'WARNING'
   },
   { 
     id: '#SHP-31094', 
@@ -62,7 +64,8 @@ const shipments: Shipment[] = [
     destCoords: [13.0033, 80.2555], 
     startCoords: [13.1500, 80.2300], 
     baseTemp: 2.2, 
-    etaBase: 24 
+    etaBase: 24,
+    status: 'SAFE'
   },
   { 
     id: '#SHP-12847', 
@@ -72,7 +75,8 @@ const shipments: Shipment[] = [
     destCoords: [13.0418, 80.2341], 
     startCoords: [12.9000, 80.2200], 
     baseTemp: 4.5, 
-    etaBase: 31 
+    etaBase: 31,
+    status: 'SAFE'
   },
   { 
     id: '#SHP-99281', 
@@ -82,7 +86,8 @@ const shipments: Shipment[] = [
     destCoords: [13.0100, 80.2000], 
     startCoords: [13.2200, 80.3200], 
     baseTemp: -18.4, 
-    etaBase: 45 
+    etaBase: 45,
+    status: 'SAFE'
   },
   { 
     id: '#SHP-55420', 
@@ -92,7 +97,8 @@ const shipments: Shipment[] = [
     destCoords: [13.0200, 80.1800], 
     startCoords: [13.0500, 80.2600], 
     baseTemp: 5.1, 
-    etaBase: 12 
+    etaBase: 12,
+    status: 'SAFE'
   }
 ];
 
@@ -102,17 +108,23 @@ export default function Tracker() {
 
   const [currentLoc, setCurrentLoc] = useState<[number, number]>(currentShipment.startCoords);
   const [currentTemp, setCurrentTemp] = useState(currentShipment.baseTemp);
+  const [currentStatus, setCurrentStatus] = useState(currentShipment.status);
   const [etaMinutes, setEtaMinutes] = useState(currentShipment.etaBase);
   const [etaSeconds, setEtaSeconds] = useState(0);
   const [chartData, setChartData] = useState(generateChartData(currentShipment.baseTemp));
+  const [showPopup, setShowPopup] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   // Reset state when switching shipments
   useEffect(() => {
     setCurrentLoc(currentShipment.startCoords);
     setCurrentTemp(currentShipment.baseTemp);
+    setCurrentStatus(currentShipment.status);
     setEtaMinutes(currentShipment.etaBase);
     setEtaSeconds(0);
     setChartData(generateChartData(currentShipment.baseTemp));
+    setShowPopup(false);
+    setShowToast(false);
   }, [currentIndex, currentShipment]);
 
   useEffect(() => {
@@ -133,6 +145,12 @@ export default function Tracker() {
 
     const tempInterval = setInterval(() => {
       setCurrentTemp(prev => {
+        if (currentStatus === 'BREACH') {
+          return Number((prev + 0.3).toFixed(1));
+        }
+        if (currentStatus === 'REROUTING') {
+          return prev;
+        }
         const fluctuation = (Math.random() * 0.2) - 0.1;
         return Number((prev + fluctuation).toFixed(1));
       });
@@ -157,6 +175,56 @@ export default function Tracker() {
 
   const nextShipment = () => setCurrentIndex((prev) => (prev + 1) % shipments.length);
   const prevShipment = () => setCurrentIndex((prev) => (prev - 1 + shipments.length) % shipments.length);
+
+  const triggerBreach = () => {
+    setCurrentStatus('BREACH');
+    setCurrentTemp(11.4);
+    setTimeout(() => setShowPopup(true), 1500);
+  };
+
+  const acceptBestOption = () => {
+    setShowPopup(false);
+    setCurrentStatus('REROUTING');
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 5000);
+  };
+
+  const getStatusBannerConfig = () => {
+    switch(currentStatus) {
+      case 'SAFE':
+        return { 
+          bg: 'bg-green-600 border-green-500 shadow-[0_0_30px_rgba(34,197,94,0.15)]',
+          iconBg: 'text-green-600',
+          title: 'Shipment Status: Healthy',
+          desc: `Climate control verified at ${currentTemp.toFixed(1)}°C — Journey safe.`
+        };
+      case 'WARNING':
+        return {
+          bg: 'bg-yellow-600 border-yellow-500 shadow-[0_0_30px_rgba(234,179,8,0.15)]',
+          iconBg: 'text-yellow-600',
+          title: 'Shipment Status: Warning',
+          desc: `Temperature rising at ${currentTemp.toFixed(1)}°C — Approaching safe limit (8°C).`
+        };
+      case 'BREACH':
+        return {
+          bg: 'bg-red-600 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.2)] animate-pulse',
+          iconBg: 'text-red-600',
+          title: 'Shipment Status: BREACH DETECTED',
+          desc: `CRITICAL: Temperature at ${currentTemp.toFixed(1)}°C — Cargo spoilage imminent.`
+        };
+      case 'REROUTING':
+        return {
+          bg: 'bg-blue-600 border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.15)]',
+          iconBg: 'text-blue-600',
+          title: 'Shipment Status: Rerouting',
+          desc: `Vehicle rerouted to Apollo Cold Storage. Stabilizing environment.`
+        };
+      default:
+        return { bg: '', iconBg: '', title: '', desc: '' };
+    }
+  };
+
+  const banner = getStatusBannerConfig();
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto w-full pb-10">
@@ -185,13 +253,55 @@ export default function Tracker() {
         </button>
       </div>
 
-      <div className="bg-green-600 border border-green-500 rounded-2xl p-6 flex items-center justify-center gap-6 shadow-[0_0_30px_rgba(34,197,94,0.15)]">
-        <div className="bg-white rounded-full p-2 text-green-600 shadow-lg shrink-0">
-          <CheckCircle size={40} className="stroke-[3]" />
+      {/* Toast Notification */}
+      <div className={`fixed bottom-6 w-[400px] left-1/2 -translate-x-1/2 z-[2000] bg-green-900/90 border border-green-500/50 text-green-400 px-6 py-4 rounded-xl shadow-lg flex items-center gap-3 transition-transform duration-500 ease-in-out ${showToast ? 'translate-y-0 opacity-100' : 'translate-y-24 opacity-0'}`}>
+        <CheckCircle size={28} className="flex-shrink-0 text-green-400" />
+        <div>
+          <p className="font-bold text-white mb-1 leading-tight">Vehicle rerouted to Apollo Cold Storage.</p>
+          <p className="text-sm text-green-400 line-clamp-2">Driver notified via WhatsApp.</p>
+        </div>
+      </div>
+
+      {/* AI Recommendation Popup */}
+      <div className={`fixed top-24 right-6 z-[1900] w-[400px] bg-gray-900 border-l-[6px] border-l-red-500 rounded-xl p-5 shadow-2xl transition-transform duration-500 ease-in-out ${showPopup ? 'translate-x-0' : 'translate-x-[150%]'}`}>
+        <div className="flex items-start gap-4 mb-4">
+          <div className="bg-red-500/20 p-2 rounded-lg mt-1">
+            <AlertTriangle className="text-red-500" size={24} />
+          </div>
+          <div>
+            <h3 className="text-white font-bold text-lg leading-tight mb-1">⚠️ BREACH DETECTED — {currentShipment.id}</h3>
+            <p className="text-gray-300 text-sm">Cargo: {currentShipment.cargo}</p>
+            <p className="text-gray-300 text-sm">Current Temp: <span className="text-red-500 font-bold">{currentTemp.toFixed(1)}°C</span> (Limit: 8°C)</p>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-800 pt-4">
+          <p className="text-xs font-bold text-gray-400 tracking-wider mb-3 text-center">--- AI RECOMMENDED ACTIONS ---</p>
+          <div className="bg-gray-800 border-2 border-[#EAB308] rounded-xl p-3 cursor-pointer hover:bg-gray-700 transition-colors shadow-[0_0_15px_rgba(234,179,8,0.1)] relative" onClick={acceptBestOption}>
+            <p className="absolute -top-3 left-3 bg-[#EAB308] text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Best Option</p>
+            <p className="text-white font-bold text-[15px] pt-1 leading-snug">Reroute to nearest cold storage</p>
+            <p className="text-gray-400 text-sm mt-1">Apollo Cold Storage — 4.2 km away</p>
+            <p className="text-green-400 text-sm font-medium mt-1">ETA: 11 minutes ✓ Cargo saved</p>
+          </div>
+        </div>
+
+        <div className="flex gap-3 mt-5">
+          <button onClick={acceptBestOption} className="flex-1 bg-[#EAB308] hover:bg-yellow-500 text-black font-bold py-2.5 rounded-lg transition-colors text-sm">
+            Accept Best Option
+          </button>
+          <button onClick={() => setShowPopup(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white font-medium py-2.5 rounded-lg transition-colors border border-gray-700 text-sm">
+            Dismiss
+          </button>
+        </div>
+      </div>
+
+      <div className={`${banner.bg} border rounded-2xl p-6 flex items-center justify-center gap-6 transition-colors duration-500`}>
+        <div className={`bg-white rounded-full p-2 ${banner.iconBg} shadow-lg shrink-0`}>
+          {currentStatus === 'BREACH' ? <AlertTriangle size={40} className="stroke-[3]" /> : <CheckCircle size={40} className="stroke-[3]" />}
         </div>
         <div className="text-white">
-          <h2 className="text-2xl font-black tracking-wide mb-1 shadow-black/20 text-shadow uppercase">Shipment Status: Healthy</h2>
-          <p className="text-green-50 font-medium text-lg opacity-90 leading-tight">Climate control verified at {currentTemp.toFixed(1)}°C — Journey safe.</p>
+          <h2 className="text-2xl font-black tracking-wide mb-1 shadow-black/20 text-shadow uppercase">{banner.title}</h2>
+          <p className="text-white/90 font-medium text-lg leading-tight">{banner.desc}</p>
         </div>
       </div>
 
@@ -209,13 +319,23 @@ export default function Tracker() {
               dashArray="10, 10" 
               opacity={0.6}
             />
-            <Marker position={currentLoc} icon={createIcon("bg-green-500")}>
+            <Marker position={currentLoc} icon={createIcon(currentStatus === 'SAFE' ? 'bg-green-500' : currentStatus === 'WARNING' ? 'bg-yellow-500' : currentStatus === 'REROUTING' ? 'bg-blue-500' : 'bg-red-500')}>
               <Popup className="font-sans font-bold text-sm">Vehicle: {currentShipment.id}</Popup>
             </Marker>
             <Marker position={currentShipment.destCoords} icon={destIcon}>
               <Popup className="font-sans font-bold text-sm">Destination: {currentShipment.destination}</Popup>
             </Marker>
           </MapContainer>
+
+          {currentIndex === 0 && (
+            <button 
+              onClick={triggerBreach}
+              className="absolute bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-5 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] animate-pulse hover:animate-none transition-all z-[400] overflow-hidden flex items-center gap-2 border border-red-500/50"
+            >
+              <AlertTriangle size={20} />
+              <span className="text-base">Simulate Breach</span>
+            </button>
+          )}
         </div>
         
         <div className="lg:col-span-2 flex flex-col gap-4">
@@ -262,9 +382,11 @@ export default function Tracker() {
                 <p className="text-2xl font-mono font-bold text-white">{etaMinutes}:{etaSeconds.toString().padStart(2, '0')}</p>
              </div>
              <div className="bg-gray-900 border border-gray-800 p-5 rounded-2xl shadow-xl flex flex-col items-center justify-center gap-2 relative overflow-hidden">
-                <div className="text-[#EAB308]"><CheckCircle size={24} /></div>
+                <div className={currentStatus === 'BREACH' ? 'text-red-500' : 'text-[#EAB308]'}>
+                  {currentStatus === 'BREACH' ? <AlertTriangle size={24} /> : <CheckCircle size={24} />}
+                </div>
                 <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest relative z-10">Live Temp</p>
-                <p className="text-2xl font-mono font-bold text-white relative z-10">{currentTemp.toFixed(1)}<span className="text-sm text-gray-400">°C</span></p>
+                <p className={`text-2xl font-mono font-bold relative z-10 ${currentStatus === 'BREACH' ? 'text-red-500' : 'text-white'}`}>{currentTemp.toFixed(1)}<span className="text-sm text-gray-400">°C</span></p>
              </div>
           </div>
         </div>
